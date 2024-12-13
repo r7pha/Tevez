@@ -44,7 +44,6 @@ local library = {
         ['window'] = 1000;
         ['dropdown'] = 1200;
         ['colorpicker'] = 1100;
-        ['watermark'] = 1300;
         ['notification'] = 1400;
     },
     stats = {
@@ -4398,70 +4397,6 @@ function library:init()
         })
 
     end
-    
-    do
-        self.watermark = {
-            objects = {};
-            text = {
-                {"Zigga", true},
-                {"V"..getgenv().Config.Version, true},
-                {'0 fps', true},
-                {'0ms', true}, 
-            };
-            lock = 'custom';
-            position = newUDim2(0,0,0,0);
-            refreshrate = 25;
-        }
-    
-        function self.watermark:Update()
-            self.objects.background.Visible = library.flags.watermark_enabled
-            if library.flags.watermark_enabled then
-                local date = {os.date('%b',os.time()), os.date('%d',os.time()), os.date('%Y',os.time())}
-                local daySuffix = math.floor(date[2]%10)
-                date[2] = date[2]..(daySuffix == 1 and 'st' or daySuffix == 2 and 'nd' or daySuffix == 3 and 'rd' or 'th')
-    
-                self.text[3][1] = library.stats.fps..' fps'
-                self.text[4][1] = floor(library.stats.ping)..'ms' 
-    
-                local text = {}
-                for _,v in next, self.text do
-                    if v[2] then
-                        table.insert(text, v[1])
-                    end
-                end
-    
-                self.objects.text.Text = table.concat(text, ' | ')
-                self.objects.background.Size = newUDim2(0, self.objects.text.TextBounds.X + 10, 0, 17)
-    
-                local size = self.objects.background.Object.Size
-                local screensize = workspace.CurrentCamera.ViewportSize
-    
-                self.position = (
-                    self.lock == 'Top Right' and newUDim2(0, screensize.X - size.X - 15, 0, 15) or
-                    self.lock == 'Top Left' and newUDim2(0, 15, 0, 15) or
-                    self.lock == 'Bottom Right' and newUDim2(0, screensize.X - size.X - 15, 0, screensize.Y - size.Y - 15) or
-                    self.lock == 'Bottom Left' and newUDim2(0, 15, 0, screensize.Y - size.Y - 15) or
-                    self.lock == 'Top' and newUDim2(0, screensize.X / 2 - size.X / 2, 0, 15) or
-                    newUDim2(library.flags.watermark_x / 100, 0, library.flags.watermark_y / 100, 0)
-                )
-    
-                self.objects.background.Position = self.position
-            end
-        end
-    end
-    
-    local lasttick = tick();
-    utility:Connection(runservice.RenderStepped, function(step)
-        library.stats.fps = floor(1/step)
-        library.stats.ping = stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-        library.stats.sendkbps = stats.DataSendKbps
-        library.stats.receivekbps = stats.DataReceiveKbps
-
-        if (tick()-lasttick)*1000 > library.watermark.refreshrate then
-            lasttick = tick()
-            library.watermark:Update()
-        end
-    end)
 
     self.keyIndicator = self.NewIndicator({title = 'Keybinds', pos = newUDim2(0,15,0,325), enabled = false});
     
@@ -4581,15 +4516,6 @@ function library:CreateSettingsTab(menu)
     mainSection:AddSlider({text = 'Position Y', flag = 'keybind_indicator_y', min = 0, max = 100, increment = .1, value = 35, callback = function()
         library.keyIndicator:SetPosition(newUDim2(library.flags.keybind_indicator_x / 100, 0, library.flags.keybind_indicator_y / 100, 0));    
     end});
-
-    mainSection:AddSeparator({text = 'Watermark'})
-    mainSection:AddToggle({text = 'Enabled', flag = 'watermark_enabled'});
-    mainSection:AddList({text = 'Position', flag = 'watermark_pos', selected = 'Custom', values = {'Top', 'Top Left', 'Top Right', 'Bottom Left', 'Bottom Right', 'Custom'}, callback = function(val)
-        library.watermark.lock = val;
-    end})
-    mainSection:AddSlider({text = 'Custom X', flag = 'watermark_x', suffix = '%', value = 6.1, min = 0, max = 100, increment = .1});
-    mainSection:AddSlider({text = 'Custom Y', flag = 'watermark_y', suffix = '%', value = 1.2, min = 0, max = 100, increment = .1});
-
     local themeStrings = {};
     for _,v in next, library.themes do
         table.insert(themeStrings, v.name)
