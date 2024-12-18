@@ -46,7 +46,7 @@ getgenv().Aiming = {
 
     VisibleCheck = true,
     
-    CentralizeFOV = true,
+    CentralizeFOV = false,
 
     HitChance = 100,
 
