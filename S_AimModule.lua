@@ -32,6 +32,8 @@ local FindFirstChildWhichIsA = Instancenew("Part").FindFirstChildWhichIsA
 local FindFirstChild = Instancenew("Part").FindFirstChild
 local tableremove = table.remove
 local tableinsert = table.insert
+local UserInputService = game:GetService "UserInputService"
+local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
 -- // Silent Aim Vars
 getgenv().Aiming = {
@@ -44,6 +46,8 @@ getgenv().Aiming = {
 
     VisibleCheck = true,
     
+    CentralizeFOV = true,
+
     HitChance = 100,
 
     Selected = nil,
@@ -76,19 +80,23 @@ Aiming.FOVCircle = circle
 
 -- // Update
 function Aiming.UpdateFOV()
-    -- // Make sure the circle exists
-    if not (circle) then
-        return
-    end
+    -- Verificar se o círculo existe
+    if not circle then return end
 
-    -- // Set Circle Properties
     circle.Visible = Aiming.ShowFOV
     circle.Radius = (Aiming.FOV * 3)
-    circle.Position = Vector2new(Mouse.X, Mouse.Y + GetGuiInset(GuiService).Y)
     circle.NumSides = Aiming.FOVSides
     circle.Color = Aiming.FOVColour
 
-    -- // Return circle
+    if Aiming.CentralizeFOV and isMobile then
+        local screenCenter = Vector2new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
+        circle.Position = screenCenter
+    else
+        local mousePos = (isMobile and UserInputService:GetMouseLocation()) or Vector2new(Mouse.X, Mouse.Y)
+        local GuiInset = GetGuiInset(GuiService)
+        circle.Position = mousePos + Vector2new(0, GuiInset.Y)
+    end
+
     return circle
 end
 
@@ -314,33 +322,24 @@ Aiming.checkSilentAim = Aiming.Check
 -- // Get Closest Target Part
 function Aiming.GetClosestTargetPartToCursor(Character)
     local TargetParts = Aiming.TargetPart
-
-    -- // Vars
     local ClosestPart = nil
     local ClosestPartPosition = nil
     local ClosestPartOnScreen = false
     local ClosestPartMagnitudeFromMouse = nil
     local ShortestDistance = 1/0
 
-    -- //
     local function CheckTargetPart(TargetPart)
-        -- // Convert string -> Instance
-        if (typeof(TargetPart) == "string") then
+        if typeof(TargetPart) == "string" then
             TargetPart = FindFirstChild(Character, TargetPart)
         end
 
-        -- // Make sure we have a target
-        if not (TargetPart) then
-            return
-        end
+        if not TargetPart then return end
 
-        -- // Get the length between Mouse and Target Part (on screen)
         local PartPos, onScreen = WorldToViewportPoint(CurrentCamera, TargetPart.Position)
         local GuiInset = GetGuiInset(GuiService)
         local Magnitude = (Vector2new(PartPos.X, PartPos.Y - GuiInset.Y) - Vector2new(Mouse.X, Mouse.Y)).Magnitude
 
-        -- //
-        if (Magnitude < ShortestDistance) then
+        if Magnitude < ShortestDistance then
             ClosestPart = TargetPart
             ClosestPartPosition = PartPos
             ClosestPartOnScreen = onScreen
@@ -349,72 +348,48 @@ function Aiming.GetClosestTargetPartToCursor(Character)
         end
     end
 
-    -- // String check
-    if (typeof(TargetParts) == "string") then
-        -- // Check if it all
-        if (TargetParts == "All") then
-            -- // Loop through character children
+    if typeof(TargetParts) == "string" then
+        if TargetParts == "All" then
             for _, v in ipairs(Character:GetChildren()) do
-                -- // See if it a part
-                if not (v:IsA("BasePart")) then
-                    continue
+                if v:IsA("BasePart") then
+                    CheckTargetPart(v)
                 end
-
-                -- // Check it
-                CheckTargetPart(v)
             end
         else
-            -- // Individual
             CheckTargetPart(TargetParts)
         end
     end
 
-    -- //
-    if (typeof(TargetParts) == "table") then
-        -- // Loop through all target parts and check them
+    if typeof(TargetParts) == "table" then
         for _, TargetPartName in ipairs(TargetParts) do
             CheckTargetPart(TargetPartName)
         end
     end
 
-    -- //
     return ClosestPart, ClosestPartPosition, ClosestPartOnScreen, ClosestPartMagnitudeFromMouse
 end
 
--- // Silent Aim Function
 function Aiming.GetClosestPlayerToCursor()
-    -- // Vars
     local TargetPart = nil
     local ClosestPlayer = nil
     local Chance = CalcChance(Aiming.HitChance)
     local ShortestDistance = 1/0
 
-    -- // Chance
-    if (not Chance) then
+    if not Chance then
         Aiming.Selected = LocalPlayer
         Aiming.SelectedPart = nil
-
         return LocalPlayer
     end
 
-    -- // Loop through all players
     for _, Player in ipairs(GetPlayers(Players)) do
-        -- // Get Character
         local Character = Aiming.Character(Player)
 
-        -- // Make sure isn't ignored and Character exists
-        if (Aiming.IsIgnored(Player) == false and Character) then
-            -- // Vars
+        if not Aiming.IsIgnored(Player) and Character then
             local TargetPartTemp, _, _, Magnitude = Aiming.GetClosestTargetPartToCursor(Character)
 
-            -- // Check if part exists and health
-            if (TargetPartTemp and Aiming.CheckHealth(Player)) then
-                -- // Check if is in FOV
-                if (circle.Radius > Magnitude and Magnitude < ShortestDistance) then
-                    -- // Check if Visible
-                    if (Aiming.VisibleCheck and not Aiming.IsPartVisible(TargetPartTemp, Character)) then continue end
-
-                    -- // Set vars
+            if TargetPartTemp and Aiming.CheckHealth(Player) then
+                if circle.Radius > Magnitude and Magnitude < ShortestDistance then
+                    if Aiming.VisibleCheck and not Aiming.IsPartVisible(TargetPartTemp, Character) then continue end
                     ClosestPlayer = Player
                     ShortestDistance = Magnitude
                     TargetPart = TargetPartTemp
@@ -423,11 +398,9 @@ function Aiming.GetClosestPlayerToCursor()
         end
     end
 
-    -- // End
     Aiming.Selected = ClosestPlayer
     Aiming.SelectedPart = TargetPart
 end
-
 -- // Heartbeat Function
 Heartbeat:Connect(function()
     Aiming.UpdateFOV()
